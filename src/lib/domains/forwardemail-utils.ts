@@ -23,3 +23,13 @@ export function forwardEmailSendingRecords(hostname: string, domain: Pick<Forwar
 		{ key: "dmarc", type: "TXT", name: absolute(records.dmarc.name, hostname), value: records.dmarc.value },
 	];
 }
+
+export const isMailflareWebhook = (recipient: string) => /^https?:\/\/[^/]+\/api\/inbound\/forwardemail(\?|$)/.test(recipient.trim());
+
+/** Who the domain's catch-all belongs to; Mailflare only ever changes or removes its own. */
+export function catchAllOwnership(alias: { recipients: string[] } | null): "none" | "mailflare" | "other" | "shared" {
+	if (!alias) return "none";
+	const ours = alias.recipients.filter(isMailflareWebhook).length;
+	if (ours === 0) return "other";
+	return ours === alias.recipients.length ? "mailflare" : "shared";
+}

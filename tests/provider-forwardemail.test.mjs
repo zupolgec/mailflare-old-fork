@@ -201,3 +201,13 @@ test("ForwardEmail MX hosts are recognised with or without a trailing dot", () =
 	assert.equal(records.isForwardEmailMx("aspmx.l.google.com"), false);
 	assert.equal(records.isForwardEmailMx("route1.mx.cloudflare.net"), false);
 });
+
+test("only a catch-all pointing at Mailflare's webhook counts as Mailflare's", () => {
+	assert.equal(records.isMailflareWebhook("https://mail.acme.test/api/inbound/forwardemail?token=abc&attachments=false"), true);
+	assert.equal(records.isMailflareWebhook("someone@gmail.com"), false);
+	assert.equal(records.isMailflareWebhook("https://hooks.example.org/inbound"), false);
+	assert.deepEqual(records.catchAllOwnership(null), "none");
+	assert.deepEqual(records.catchAllOwnership({ recipients: ["https://mail.acme.test/api/inbound/forwardemail?token=abc"] }), "mailflare");
+	assert.deepEqual(records.catchAllOwnership({ recipients: ["me@gmail.com"] }), "other");
+	assert.deepEqual(records.catchAllOwnership({ recipients: ["me@gmail.com", "https://mail.acme.test/api/inbound/forwardemail?token=abc"] }), "shared");
+});

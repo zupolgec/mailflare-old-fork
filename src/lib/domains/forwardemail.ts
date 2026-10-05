@@ -2,7 +2,7 @@ import { createDnsRecord, deleteDnsRecord, listDnsRecords } from "@/lib/cloudfla
 import { isManualZone } from "@/lib/domains/provision";
 import { listDomainMx, MxConflictError, removeMx } from "@/lib/domains/receiving-dns";
 import { isPublicHttps } from "@/lib/domains/resend-receiving";
-import { FORWARD_EMAIL_MX, forwardEmailSendingRecords, forwardEmailVerificationRecord, isForwardEmailMx } from "@/lib/domains/forwardemail-utils";
+import { catchAllOwnership, FORWARD_EMAIL_MX, forwardEmailSendingRecords, forwardEmailVerificationRecord, isForwardEmailMx, isMailflareWebhook } from "@/lib/domains/forwardemail-utils";
 import {
 	createForwardEmailDomain, deleteForwardEmailAlias, getForwardEmailAlias, getForwardEmailApiKey, getForwardEmailDomain,
 	requireForwardEmailApiKey, saveForwardEmailAlias, verifyForwardEmailRecords,
@@ -60,6 +60,10 @@ async function setupReceiving(env: CloudflareEnv, domain: DomainRow, origin: str
 	const apiKey = requireForwardEmailApiKey(env);
 	await ensureDomain(env, apiKey, domain);
 	const alias = await getForwardEmailAlias(apiKey, domain.hostname, CATCH_ALL);
+	// A catch-all the user made for something else is theirs: never overwrite it.
+	if (alias && catchAllOwnership(alias) !== "mailflare") {
+		throw new Error(`${domain.hostname} already has a catch-all in ForwardEmail that delivers elsewhere (${alias.recipients.filter((recipient) => !isMailflareWebhook(recipient)).join(", ")}). Remove it in ForwardEmail, then run Setup again.`);
+	}
 	await saveForwardEmailAlias(apiKey, domain.hostname, alias, CATCH_ALL, [await webhookUrl(apiKey, origin)]);
 	if (!options.keepMx) await publishForwardEmailMx(env, domain, options.replaceMx);
 	await verifyForwardEmailRecords(apiKey, domain.hostname, "records").catch(() => undefined);
@@ -115,7 +119,13 @@ export async function getForwardEmailView(env: CloudflareEnv, domain: DomainRow,
 	if (kind === "receiving") {
 		const alias = forward ? await getForwardEmailAlias(apiKey, domain.hostname, CATCH_ALL) : null;
 		const expected = await webhookUrl(apiKey, origin);
-		steps.push({ key: "alias", label: "Mail delivered to Mailflare", ok: !!alias?.is_enabled && alias.recipients.includes(expected) });
+		const foreign = catchAllOwnership(alias) === "other" || catchAllOwnership(alias) === "shared";
+		steps.push({
+			key: "alias",
+			label: "Mail delivered to Mailflare",
+			ok: !!alias?.is_enabled && alias.recipients.includes(expected),
+			detail: foreign ? "The domain's catch-all in ForwardEmail delivers elsewhere; remove it first" : undefined,
+		});
 		const mx = await listDomainMx(env, domain);
 		const toForwardEmail = mx.some((record) => isForwardEmailMx(record.content ?? ""));
 		const other = mx.find((record) => !isForwardEmailMx(record.content ?? ""));
@@ -151,7 +161,7 @@ export async function hasForwardEmailConfig(env: CloudflareEnv, domain: DomainRo
 		const forward = await getForwardEmailDomain(apiKey, domain.hostname);
 		if (!forward) return false;
 		if (kind === "sending") return !!forward.has_dkim_record;
-		return !!(await getForwardEmailAlias(apiKey, domain.hostname, CATCH_ALL));
+		return catchAllOwnership(await getForwardEmailAlias(apiKey, domain.hostname, CATCH_ALL)) === "mailflare";
 	} catch { return null; }
 }
 
@@ -165,7 +175,11 @@ export async function removeForwardEmail(env: CloudflareEnv, domain: DomainRow, 
 	if (kind === "receiving") {
 		await removeMx(env, domain, isForwardEmailMx);
 		const alias = forward ? await getForwardEmailAlias(apiKey, domain.hostname, CATCH_ALL) : null;
-		if (alias) await deleteForwardEmailAlias(apiKey, domain.hostname, alias.id);
+		const ownership = catchAllOwnership(alias);
+		if (alias && ownership === "mailflare") await deleteForwardEmailAlias(apiKey, domain.hostname, alias.id);
+		if (alias && ownership === "shared") {
+			await saveForwardEmailAlias(apiKey, domain.hostname, alias, CATCH_ALL, alias.recipients.filter((recipient) => !isMailflareWebhook(recipient)));
+		}
 		return;
 	}
 	if (!forward) return;
