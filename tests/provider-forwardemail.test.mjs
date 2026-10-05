@@ -206,8 +206,23 @@ test("only a catch-all pointing at Mailflare's webhook counts as Mailflare's", (
 	assert.equal(records.isMailflareWebhook("https://mail.acme.test/api/inbound/forwardemail?token=abc&attachments=false"), true);
 	assert.equal(records.isMailflareWebhook("someone@gmail.com"), false);
 	assert.equal(records.isMailflareWebhook("https://hooks.example.org/inbound"), false);
-	assert.deepEqual(records.catchAllOwnership(null), "none");
-	assert.deepEqual(records.catchAllOwnership({ recipients: ["https://mail.acme.test/api/inbound/forwardemail?token=abc"] }), "mailflare");
-	assert.deepEqual(records.catchAllOwnership({ recipients: ["me@gmail.com"] }), "other");
-	assert.deepEqual(records.catchAllOwnership({ recipients: ["me@gmail.com", "https://mail.acme.test/api/inbound/forwardemail?token=abc"] }), "shared");
+	assert.deepEqual(records.aliasOwnership(null), "none");
+	assert.deepEqual(records.aliasOwnership({ recipients: ["https://mail.acme.test/api/inbound/forwardemail?token=abc"] }), "mailflare");
+	assert.deepEqual(records.aliasOwnership({ recipients: ["me@gmail.com"] }), "other");
+	assert.deepEqual(records.aliasOwnership({ recipients: ["me@gmail.com", "https://mail.acme.test/api/inbound/forwardemail?token=abc"] }), "shared");
+});
+
+test("Mailflare's webhook is added to or removed from recipients without touching anyone else's", () => {
+	const current = "https://mail.acme.test/api/inbound/forwardemail?token=new&attachments=false";
+	const stale = "https://mail.acme.test/api/inbound/forwardemail?token=old&attachments=false";
+	assert.deepEqual(records.withMailflareWebhook([], current), [current]);
+	assert.deepEqual(records.withMailflareWebhook([stale], current), [current]);
+	assert.deepEqual(records.withMailflareWebhook(["me@gmail.com", stale], current), ["me@gmail.com", current]);
+	assert.deepEqual(records.withoutMailflareWebhook(["me@gmail.com", stale]), ["me@gmail.com"]);
+	assert.deepEqual(records.withoutMailflareWebhook([stale]), []);
+});
+
+test("an address's local part becomes the alias name, catch-all stays *", () => {
+	assert.equal(records.aliasNameFor("Support@Acme.test"), "support");
+	assert.equal(records.aliasNameFor("info@acme.test"), "info");
 });

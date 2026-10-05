@@ -26,10 +26,19 @@ export function forwardEmailSendingRecords(hostname: string, domain: Pick<Forwar
 
 export const isMailflareWebhook = (recipient: string) => /^https?:\/\/[^/]+\/api\/inbound\/forwardemail(\?|$)/.test(recipient.trim());
 
-/** Who the domain's catch-all belongs to; Mailflare only ever changes or removes its own. */
-export function catchAllOwnership(alias: { recipients: string[] } | null): "none" | "mailflare" | "other" | "shared" {
+/** Who a ForwardEmail alias belongs to; Mailflare only ever changes or removes its own. */
+export function aliasOwnership(alias: { recipients: string[] } | null): "none" | "mailflare" | "other" | "shared" {
 	if (!alias) return "none";
 	const ours = alias.recipients.filter(isMailflareWebhook).length;
 	if (ours === 0) return "other";
 	return ours === alias.recipients.length ? "mailflare" : "shared";
 }
+
+/** The recipients with Mailflare's webhook set to `webhook` (replacing an older token), others kept. */
+export function withMailflareWebhook(recipients: string[], webhook: string): string[] {
+	return [...recipients.filter((recipient) => !isMailflareWebhook(recipient)), webhook];
+}
+
+export const withoutMailflareWebhook = (recipients: string[]) => recipients.filter((recipient) => !isMailflareWebhook(recipient));
+
+export const aliasNameFor = (address: string) => address.slice(0, address.lastIndexOf("@")).toLowerCase();

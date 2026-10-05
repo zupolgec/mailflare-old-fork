@@ -12,7 +12,13 @@ import { sendSystemEmail } from "@/lib/email/system-mail";
 type Params = { params: Promise<{ id: string }> };
 const noStore = { "Cache-Control": "no-store" };
 const kindSchema = z.enum(["receiving", "sending"]);
-const postSchema = z.object({ kind: kindSchema, action: z.enum(["setup", "test"]), replaceMx: z.boolean().optional(), keepMx: z.boolean().optional() });
+const postSchema = z.object({
+	kind: kindSchema,
+	action: z.enum(["setup", "test"]),
+	replaceMx: z.boolean().optional(),
+	keepMx: z.boolean().optional(),
+	mode: z.enum(["aliases", "catchall"]).optional(),
+});
 
 const originOf = (env: CloudflareEnv, request: Request) => env.APP_URL?.trim() || new URL(request.url).origin;
 
@@ -47,7 +53,7 @@ export async function POST(request: Request, { params }: Params) {
 	if (!domain) return NextResponse.json({ error: "Not found" }, { status: 404 });
 	const parsed = postSchema.safeParse(await request.json().catch(() => null));
 	if (!parsed.success) return NextResponse.json({ error: "Unknown action" }, { status: 400 });
-	const { kind, action, replaceMx, keepMx } = parsed.data;
+	const { kind, action, replaceMx, keepMx, mode } = parsed.data;
 	try {
 		if (action === "test") {
 			const sent = await sendSystemEmail(env, {
@@ -59,7 +65,7 @@ export async function POST(request: Request, { params }: Params) {
 			if (!sent) return NextResponse.json({ error: `Create a mailbox on ${domain.hostname} to send the test from.` }, { status: 400 });
 			return NextResponse.json({ ok: true, to: user.email });
 		}
-		await setupForwardEmail(env, domain, kind, originOf(env, request), { replaceMx: replaceMx === true, keepMx: keepMx === true });
+		await setupForwardEmail(env, domain, kind, originOf(env, request), { replaceMx: replaceMx === true, keepMx: keepMx === true, mode });
 		return NextResponse.json({ view: await getForwardEmailView(env, domain, kind, originOf(env, request)) }, { headers: noStore });
 	} catch (error) {
 		if (error instanceof MxConflictError) return NextResponse.json({ error: error.message, code: error.code, records: error.records }, { status: 409 });

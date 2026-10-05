@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import type { AppDatabase } from "@/db";
 import { domains, mailboxAliases, mailboxes } from "@/db/schema";
 import { deleteEmailRoutingRuleForAddress, ensureEmailRoutingRuleToWorker } from "@/lib/cloudflare-api";
+import { claimForwardEmailAddress, releaseForwardEmailAddress } from "@/lib/domains/forwardemail-aliases";
 import { normalizeRecipientLocalPart } from "@/lib/email/recipient-address";
 import type { MailboxDomainAddressInput } from "./domain-addresses-types";
 import type { CfEmailRoutingRuleChange } from "@/lib/cloudflare-api.types";
@@ -99,6 +100,7 @@ export async function ensureMailboxDomainRouting(
 			const domain = domainsByHostname.get(hostname);
 			// Worker routes only matter when Cloudflare is what receives this domain's mail.
 			if (domain && domain.receivingProvider === "cloudflare") await ensureEmailRoutingRuleToWorker(env, domain.zoneId, address, changes);
+			if (domain && domain.receivingProvider === "forwardemail") await claimForwardEmailAddress(env, address);
 		}),
 	);
 	const failure = results.find((result) => result.status === "rejected");
@@ -119,7 +121,7 @@ export async function removeMailboxDomainRouting(
 		.limit(1);
 	if (!primaryDomain) return;
 	const availableDomains = await db
-		.select({ hostname: domains.hostname, zoneId: domains.zoneId })
+		.select({ hostname: domains.hostname, zoneId: domains.zoneId, receivingProvider: domains.receivingProvider })
 		.from(domains)
 		.where(eq(domains.userId, primaryDomain.userId));
 	const domainsByHostname = new Map(availableDomains.map((domain) => [domain.hostname.toLowerCase(), domain]));
@@ -129,6 +131,7 @@ export async function removeMailboxDomainRouting(
 			const hostname = address.slice(address.lastIndexOf("@") + 1);
 			const domain = domainsByHostname.get(hostname);
 			if (domain) await deleteEmailRoutingRuleForAddress(env, domain.zoneId, address);
+			if (domain?.receivingProvider === "forwardemail") await releaseForwardEmailAddress(env, address);
 		}),
 	);
 }

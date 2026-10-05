@@ -54,12 +54,15 @@ export const verifyForwardEmailRecords = (apiKey: string, hostname: string, kind
 export const getForwardEmailAlias = (apiKey: string, hostname: string, name: string) =>
 	orNull(request<ForwardEmailAlias>(apiKey, `/domains/${encodeURIComponent(hostname)}/aliases/${encodeURIComponent(name)}`));
 
+/** A new alias is Mailflare's own; on an existing one only the recipients change, so its other settings stay as they were. */
 export function saveForwardEmailAlias(apiKey: string, hostname: string, existing: ForwardEmailAlias | null, name: string, recipients: string[]) {
-	const body = { name, recipients, is_enabled: true, has_imap: false, has_recipient_verification: false, description: "Delivers to Mailflare" };
 	const base = `/domains/${encodeURIComponent(hostname)}/aliases`;
 	return existing
-		? request<ForwardEmailAlias>(apiKey, `${base}/${existing.id}`, { method: "PUT", body })
-		: request<ForwardEmailAlias>(apiKey, base, { method: "POST", body });
+		? request<ForwardEmailAlias>(apiKey, `${base}/${existing.id}`, { method: "PUT", body: { recipients } })
+		: request<ForwardEmailAlias>(apiKey, base, {
+			method: "POST",
+			body: { name, recipients, is_enabled: true, has_imap: false, has_recipient_verification: false, description: "Delivers to Mailflare" },
+		});
 }
 
 export const deleteForwardEmailAlias = (apiKey: string, hostname: string, id: string) =>

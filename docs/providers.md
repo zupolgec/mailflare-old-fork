@@ -4,7 +4,7 @@ Mailflare keeps your mail data in your own D1 database and R2 bucket (or SQLite 
 
 | | Cloudflare | Resend | Amazon SES | ForwardEmail |
 |---|---|---|---|---|
-| **Receiving** | Email Routing (the default) | `email.received` webhook | S3 + SNS notification | catch-all alias to a webhook |
+| **Receiving** | Email Routing (the default) | `email.received` webhook | S3 + SNS notification | aliases to a webhook |
 | **Sending** | Cloudflare Email Sending | Resend API | SESv2 API | Emails API |
 
 DNS stays on Cloudflare for every combination: Mailflare writes the records for whichever provider you pick. A domain can also be **receive-only** (sending: Not selected) or **send-only** (receiving: Not selected).
@@ -67,7 +67,12 @@ ForwardEmail needs a **paid** plan (Enhanced Protection or Team): the free plan 
 
 Both setups add the domain to ForwardEmail if needed (without its default catch-all) and publish its `forward-email-site-verification` TXT record; ForwardEmail only accepts mail for a domain once that record is found.
 
-**Receiving.** Setup points the domain's catch-all alias (`*`) at `/api/inbound/forwardemail`, with IMAP storage off, so every message for the domain reaches Mailflare. The webhook body carries the raw MIME, which goes straight to the normal inbound pipeline. The endpoint is guarded by a token in its URL derived from the API key, so replacing the key means running Setup again. `APP_URL` has to be a public HTTPS address.
+**Receiving.** The ForwardEmail card offers two choices:
+
+- **Only this app's mailboxes** (the default). Each mailbox address on the domain (primary addresses, mailboxes on all domains, and aliases) gets a ForwardEmail alias pointing at `/api/inbound/forwardemail`, with IMAP storage off. Every other alias of the domain, including your own catch-all, keeps working as before. Creating or deleting a mailbox adds or removes its alias, provided `APP_URL` is set. An alias that already delivers somewhere else is yours and is never changed: the checklist lists it, and that address does not reach Mailflare until you remove or change it in ForwardEmail. If an alias delivers both elsewhere and to Mailflare, only Mailflare's recipient is ever added or removed.
+- **All mail for the domain.** The domain's catch-all (`*`) delivers to Mailflare. Setup refuses when a catch-all of yours already exists.
+
+The webhook body carries the raw MIME, which goes straight to the normal inbound pipeline. The endpoint is guarded by a token in its URL derived from the API key, so replacing the key means running Setup again. `APP_URL` has to be a public HTTPS address.
 
 ForwardEmail does not need to own the MX. When the domain has MX records for another service, Setup asks what to do:
 
@@ -91,7 +96,7 @@ If a provider you are not using still has configuration for the domain, its card
 - **Resend** deletes the domain from Resend and its DNS records. If the domain still receives (or sends) through Resend, only the capability you are leaving is switched off.
 - **SES sending** deletes the identity and its DKIM records.
 - **SES receiving** deletes the domain's receipt rule and MX.
-- **ForwardEmail receiving** deletes the catch-all alias and any ForwardEmail MX. **ForwardEmail sending** deletes the DKIM and return-path records. The domain stays in your ForwardEmail account in both cases, since it may hold other aliases.
+- **ForwardEmail receiving** takes Mailflare off its aliases (deleting those that delivered only to Mailflare) and deletes any ForwardEmail MX. **ForwardEmail sending** deletes the DKIM and return-path records. The domain stays in your ForwardEmail account in both cases, since it may hold other aliases.
 
 You cannot clean up the provider that is currently selected.
 
