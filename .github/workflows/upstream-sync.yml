@@ -1,0 +1,101 @@
+name: Upstream sync
+
+# Weekly merge of hieunc229/mailflare into this fork. A clean merge opens (or
+# refreshes) a pull request to review; a conflicting one opens an issue that
+# lists the files to resolve by hand.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      UPSTREAM: hieunc229/mailflare
+      BRANCH: upstream-sync
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge upstream
+        id: merge
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream "https://github.com/${UPSTREAM}.git"
+          git fetch --no-tags upstream
+          upstream_branch="$(git remote show upstream | sed -n 's/.*HEAD branch: //p')"
+          upstream_ref="upstream/${upstream_branch}"
+          echo "upstream_sha=$(git rev-parse --short "${upstream_ref}")" >> "$GITHUB_OUTPUT"
+
+          if git merge-base --is-ancestor "${upstream_ref}" HEAD; then
+            echo "Already up to date with ${upstream_ref}."
+            echo "result=current" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git checkout -B "${BRANCH}"
+          if git merge --no-edit "${upstream_ref}" -m "Merge ${UPSTREAM}@${upstream_branch}"; then
+            # The workflow token cannot push changes under .github/workflows.
+            if git push --force origin "${BRANCH}"; then
+              echo "result=merged" >> "$GITHUB_OUTPUT"
+            else
+              {
+                echo "conflicts<<EOF"
+                echo "(push refused: upstream changed workflow files)"
+                git diff --name-only HEAD~1 HEAD -- .github/workflows
+                echo "EOF"
+              } >> "$GITHUB_OUTPUT"
+              echo "result=conflict" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            {
+              echo "conflicts<<EOF"
+              git diff --name-only --diff-filter=U
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            git merge --abort
+            echo "result=conflict" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open or refresh the pull request
+        if: steps.merge.outputs.result == 'merged'
+        run: |
+          set -euo pipefail
+          title="Sync with ${UPSTREAM}"
+          body="Merges ${UPSTREAM}@${{ steps.merge.outputs.upstream_sha }}. Run the tests and check the ForwardEmail provider before merging."
+          if [ -z "$(gh pr list --head "${BRANCH}" --state open --json number --jq '.[0].number')" ]; then
+            gh pr create --head "${BRANCH}" --base "${{ github.event.repository.default_branch }}" --title "${title}" --body "${body}"
+          else
+            gh pr edit "${BRANCH}" --body "${body}"
+          fi
+
+      - name: Report conflicts
+        if: steps.merge.outputs.result == 'conflict'
+        env:
+          CONFLICTS: ${{ steps.merge.outputs.conflicts }}
+        run: |
+          set -euo pipefail
+          title="Upstream sync needs a manual merge"
+          body="$(printf 'Merging %s@%s conflicts in:\n\n%s\n\nLocally: git fetch upstream && git merge upstream/main, resolve, push.' \
+            "${UPSTREAM}" "${{ steps.merge.outputs.upstream_sha }}" "$(printf '%s\n' "${CONFLICTS}" | sed 's/^/- /')")"
+          existing="$(gh issue list --state open --search "in:title \"${title}\"" --json number --jq '.[0].number')"
+          if [ -z "${existing}" ]; then
+            gh issue create --title "${title}" --body "${body}"
+          else
+            gh issue comment "${existing}" --body "${body}"
+          fi

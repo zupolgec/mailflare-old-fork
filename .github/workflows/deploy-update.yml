@@ -10,7 +10,7 @@ jobs:
   update:
     runs-on: ubuntu-latest
     env:
-      UPDATE_SOURCE_REPOSITORY: ${{ vars.UPDATE_SOURCE_REPOSITORY || 'hieunc229/mailflare' }}
+      UPDATE_SOURCE_REPOSITORY: ${{ vars.UPDATE_SOURCE_REPOSITORY || 'zupolgec/mailflare' }}
 
     steps:
       - name: Check update token
