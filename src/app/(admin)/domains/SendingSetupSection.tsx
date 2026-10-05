@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { requestJson } from "./api";
+import ForwardEmailConfig from "./ForwardEmailConfig";
 import ProviderCard from "./ProviderCard";
 import ResendDomainSection from "./ResendDomainSection";
 import SesSendingConfig from "./SesSendingConfig";
@@ -14,6 +15,7 @@ const OPTIONS: { id: Option; title: string; description: string }[] = [
 	{ id: "cloudflare", title: "Cloudflare Email", description: "Cloudflare Email Sending. Configured on this domain's zone." },
 	{ id: "resend", title: "Resend", description: "Send through your Resend account." },
 	{ id: "ses", title: "Amazon SES", description: "Send through your AWS account with SES." },
+	{ id: "forwardemail", title: "ForwardEmail", description: "Send through your ForwardEmail account." },
 ];
 
 type Props = {
@@ -30,9 +32,10 @@ type Props = {
 type PresenceResponse = Partial<Present> & { resendStatus?: string | null; sesVerified?: boolean | null };
 
 export default function SendingSetupSection({ domain, onChange, busy, message, cloudflareConfig, cloudflareOk }: Props) {
-	const [present, setPresent] = useState<Present>({ cloudflare: null, resend: null, ses: null });
+	const [present, setPresent] = useState<Present>({ cloudflare: null, resend: null, ses: null, forwardemail: null });
 	const [resendStatus, setResendStatus] = useState<string | null>(null);
 	const [sesStatus, setSesStatus] = useState<string | null>(null);
+	const [forwardEmailReady, setForwardEmailReady] = useState<boolean | null>(null);
 	const [reload, setReload] = useState(0);
 	const [removing, setRemoving] = useState<Option | null>(null);
 	const [error, setError] = useState("");
@@ -42,11 +45,11 @@ export default function SendingSetupSection({ domain, onChange, busy, message, c
 		requestJson<PresenceResponse>(`/api/domains/${domain.id}/sending`, "GET")
 			.then((data) => {
 				if (!active) return;
-				setPresent({ cloudflare: data.cloudflare ?? null, resend: data.resend ?? null, ses: data.ses ?? null });
+				setPresent({ cloudflare: data.cloudflare ?? null, resend: data.resend ?? null, ses: data.ses ?? null, forwardemail: data.forwardemail ?? null });
 				setResendStatus(data.resendStatus ?? null);
 				setSesStatus(data.sesVerified === null || data.sesVerified === undefined ? null : data.sesVerified ? "verified" : "pending");
 			})
-			.catch(() => { if (active) setPresent({ cloudflare: null, resend: null, ses: null }); });
+			.catch(() => { if (active) setPresent({ cloudflare: null, resend: null, ses: null, forwardemail: null }); });
 		return () => { active = false; };
 	}, [domain.id, domain.sendingProvider, reload]);
 
@@ -66,6 +69,7 @@ export default function SendingSetupSection({ domain, onChange, busy, message, c
 	const okFor = (option: Option): boolean | null =>
 		option === "cloudflare" ? cloudflareOk
 		: option === "resend" ? (resendStatus === null ? null : resendStatus === "verified")
+		: option === "forwardemail" ? forwardEmailReady
 		: (sesStatus === null ? null : sesStatus === "verified");
 
 	return (
@@ -90,6 +94,7 @@ export default function SendingSetupSection({ domain, onChange, busy, message, c
 						>
 							{option.id === "cloudflare" ? cloudflareConfig
 								: option.id === "resend" ? <ResendDomainSection domainId={domain.id} onStatus={setResendStatus} />
+								: option.id === "forwardemail" ? <ForwardEmailConfig domainId={domain.id} kind="sending" onReady={setForwardEmailReady} />
 								: <SesSendingConfig domainId={domain.id} onStatus={setSesStatus} />}
 						</ProviderCard>
 					);

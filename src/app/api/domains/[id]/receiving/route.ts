@@ -21,7 +21,7 @@ export async function PUT(request: Request, { params }: Params) {
 	if (!hasValidSessionMutationOrigin(request)) return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
 	const domain = await getDomainForUser(env, user.id, id);
 	if (!domain) return NextResponse.json({ error: "Not found" }, { status: 404 });
-	const parsed = z.object({ provider: z.enum(["none", "cloudflare", "resend", "ses"]) }).safeParse(await request.json().catch(() => null));
+	const parsed = z.object({ provider: z.enum(["none", "cloudflare", "resend", "ses", "forwardemail"]) }).safeParse(await request.json().catch(() => null));
 	if (!parsed.success) return NextResponse.json({ error: "Unknown receiving provider" }, { status: 400 });
 	await getDb(env).update(domains).set({ receivingProvider: parsed.data.provider }).where(eq(domains.id, domain.id));
 	return NextResponse.json({ domain: await getDomainForUser(env, user.id, id) }, { headers: { "Cache-Control": "no-store" } });
@@ -46,7 +46,7 @@ export async function DELETE(request: Request, { params }: Params) {
 	if (!hasValidSessionMutationOrigin(request)) return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
 	const domain = await getDomainForUser(env, user.id, id);
 	if (!domain) return NextResponse.json({ error: "Not found" }, { status: 404 });
-	const parsed = z.object({ target: z.enum(["cloudflare", "resend", "ses"]) }).safeParse(await request.json().catch(() => null));
+	const parsed = z.object({ target: z.enum(["cloudflare", "resend", "ses", "forwardemail"]) }).safeParse(await request.json().catch(() => null));
 	if (!parsed.success) return NextResponse.json({ error: "Unknown provider" }, { status: 400 });
 	if (parsed.data.target === domain.receivingProvider) return NextResponse.json({ error: "Switch to another provider before removing this one" }, { status: 400 });
 	try {

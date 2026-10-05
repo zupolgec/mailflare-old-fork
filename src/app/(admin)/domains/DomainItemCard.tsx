@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import type { DomainItemCardProps } from "./types";
 
+const PROVIDER_NAMES: Record<string, string> = { resend: "Resend", ses: "Amazon SES", forwardemail: "ForwardEmail" };
+
 function StatusIcon({ ok, className }: { ok: boolean; className?: string }) {
   if (ok) return <Check className={cn(className, "text-green-600")} />;
   return <AlertTriangle className={cn(className, "text-amber-500")} />;
@@ -85,13 +87,13 @@ export default function DomainItemCard({
               </Badge>
             ) : (
               <Badge variant="outline" className="gap-1">
-                receiving via {item.receivingProvider === "ses" ? "Amazon SES" : "Resend"}
+                receiving via {PROVIDER_NAMES[item.receivingProvider]}
               </Badge>
             )}
-            {item.sendingProvider === "resend" || item.sendingProvider === "ses" ? (
+            {item.sendingProvider === "resend" || item.sendingProvider === "ses" || item.sendingProvider === "forwardemail" ? (
               <Badge variant="outline" className="gap-1">
                 <StatusIcon ok className="h-3 w-3" />
-                sending via {item.sendingProvider === "ses" ? "Amazon SES" : "Resend"}
+                sending via {PROVIDER_NAMES[item.sendingProvider]}
               </Badge>
             ) : item.sendingProvider === "none" ? (
               <Badge variant="secondary" className="gap-1 opacity-50">

@@ -19,5 +19,7 @@ CF_TOKEN=your_api_token_with_zone_email_permissions
 # AWS_ACCESS_KEY_ID=AKIA...
 # AWS_SECRET_ACCESS_KEY=your_secret_access_key
 # AWS_REGION=us-east-1
+# ForwardEmail API token (paid plan). Only read from here, not from the app.
+# FORWARDEMAIL_API_KEY=...
 # Receiving through Resend or SES needs a public HTTPS address.
 # APP_URL=https://mail.example.com

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { requestJson } from "./api";
+import ForwardEmailConfig from "./ForwardEmailConfig";
 import ProviderCard from "./ProviderCard";
 import ReceivingProviderConfig from "./ReceivingProviderConfig";
 import type { Domain, ReceivingProvider } from "./types";
@@ -13,6 +14,7 @@ const OPTIONS: { id: Option; title: string; description: string }[] = [
 	{ id: "cloudflare", title: "Cloudflare Email Routing", description: "Mail arrives through this domain's Cloudflare zone. The default." },
 	{ id: "resend", title: "Resend", description: "Resend receives mail and delivers it to Mailflare by webhook." },
 	{ id: "ses", title: "Amazon SES", description: "SES receives mail into S3 and notifies Mailflare." },
+	{ id: "forwardemail", title: "ForwardEmail", description: "ForwardEmail receives mail and delivers it to Mailflare. Works alongside Google Workspace." },
 ];
 
 type Props = {
@@ -26,8 +28,8 @@ type Props = {
 };
 
 export default function ReceivingSetupSection({ domain, onChange, busy, message, cloudflareConfig, cloudflareOk }: Props) {
-	const [present, setPresent] = useState<Present>({ cloudflare: null, resend: null, ses: null });
-	const [ready, setReady] = useState<Record<"resend" | "ses", boolean | null>>({ resend: null, ses: null });
+	const [present, setPresent] = useState<Present>({ cloudflare: null, resend: null, ses: null, forwardemail: null });
+	const [ready, setReady] = useState<Record<"resend" | "ses" | "forwardemail", boolean | null>>({ resend: null, ses: null, forwardemail: null });
 	const [reload, setReload] = useState(0);
 	const [removing, setRemoving] = useState<Option | null>(null);
 	const [error, setError] = useState("");
@@ -35,8 +37,8 @@ export default function ReceivingSetupSection({ domain, onChange, busy, message,
 	useEffect(() => {
 		let active = true;
 		requestJson<Present>(`/api/domains/${domain.id}/receiving`, "GET")
-			.then((data) => { if (active) setPresent({ cloudflare: data.cloudflare ?? null, resend: data.resend ?? null, ses: data.ses ?? null }); })
-			.catch(() => { if (active) setPresent({ cloudflare: null, resend: null, ses: null }); });
+			.then((data) => { if (active) setPresent({ cloudflare: data.cloudflare ?? null, resend: data.resend ?? null, ses: data.ses ?? null, forwardemail: data.forwardemail ?? null }); })
+			.catch(() => { if (active) setPresent({ cloudflare: null, resend: null, ses: null, forwardemail: null }); });
 		return () => { active = false; };
 	}, [domain.id, domain.receivingProvider, reload]);
 
@@ -75,7 +77,9 @@ export default function ReceivingSetupSection({ domain, onChange, busy, message,
 						>
 							{option.id === "cloudflare"
 								? cloudflareConfig
-								: <ReceivingProviderConfig domainId={domain.id} provider={option.id} onReady={(value) => setReady((current) => current[option.id as "resend" | "ses"] === value ? current : { ...current, [option.id]: value })} />}
+								: option.id === "forwardemail"
+									? <ForwardEmailConfig domainId={domain.id} kind="receiving" onReady={(value) => setReady((current) => current.forwardemail === value ? current : { ...current, forwardemail: value })} />
+									: <ReceivingProviderConfig domainId={domain.id} provider={option.id} onReady={(value) => setReady((current) => current[option.id as "resend" | "ses"] === value ? current : { ...current, [option.id]: value })} />}
 						</ProviderCard>
 					);
 				})}

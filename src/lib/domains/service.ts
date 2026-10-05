@@ -40,7 +40,7 @@ export async function addDomainForUser(
 	env: CloudflareEnv,
 	userId: string,
 	hostname: string,
-	options?: { enableRouting?: boolean; enableSending?: boolean; replaceMxRecords?: boolean; receivingProvider?: "none" | "cloudflare" | "resend" | "ses"; sendingProvider?: "none" | "cloudflare" | "resend" | "ses" },
+	options?: { enableRouting?: boolean; enableSending?: boolean; replaceMxRecords?: boolean; receivingProvider?: "none" | "cloudflare" | "resend" | "ses" | "forwardemail"; sendingProvider?: "none" | "cloudflare" | "resend" | "ses" | "forwardemail" },
 ): Promise<{
 	domain: typeof domains.$inferSelect;
 	dns: DomainDnsView;

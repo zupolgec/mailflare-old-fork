@@ -4,6 +4,7 @@ import { appSettings, domains } from "@/db/schema";
 import { requireAwsConfig } from "@/lib/aws/config";
 import { sendSesEmail } from "@/lib/aws/ses";
 import { getEmailAddress } from "@/lib/email/address";
+import { requireForwardEmailApiKey, sendForwardEmail } from "@/lib/email/forwardemail-api";
 import type { OutboundProviderConfig, OutboundProviderMessage, ResendKeyStatus } from "@/lib/email/outbound-provider-types";
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
@@ -46,6 +47,7 @@ export async function getOutboundProviderConfig(env: CloudflareEnv, fromAddress:
 	}
 	if (domain.provider === "resend") return { provider: "resend", apiKey: await getResendApiKey(env) };
 	if (domain.provider === "ses") return { provider: "ses", config: await requireAwsConfig(env) };
+	if (domain.provider === "forwardemail") return { provider: "forwardemail", apiKey: requireForwardEmailApiKey(env) };
 	return { provider: "cloudflare" };
 }
 
@@ -109,6 +111,7 @@ export async function sendThroughProvider(
 ): Promise<{ messageId: string }> {
 	if (config.provider === "resend") return sendWithResend(config.apiKey, message, idempotencyKey);
 	if (config.provider === "ses") return sendSesEmail(config.config, message);
+	if (config.provider === "forwardemail") return sendForwardEmail(config.apiKey, message);
 	const response = await env.EMAIL.send({
 		from: message.from,
 		to: message.to,

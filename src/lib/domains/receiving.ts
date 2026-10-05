@@ -10,10 +10,11 @@ import { isManualZone } from "@/lib/domains/provision";
 import { listDomainMx, MxConflictError } from "@/lib/domains/receiving-dns";
 import { removeResendReceiving, setupResendReceiving, hasResendReceivingConfig } from "@/lib/domains/resend-receiving";
 import { hasSesReceivingConfig, removeSesReceiving, setupSesReceiving } from "@/lib/aws/ses-receiving";
+import { hasForwardEmailConfig, removeForwardEmail, setupForwardEmail } from "@/lib/domains/forwardemail";
 import { ensureMailboxDomainRouting } from "@/lib/mailboxes/domain-addresses";
 import type { DomainRow } from "@/lib/domains/types";
 
-export type ReceivingProviderId = "none" | "cloudflare" | "resend" | "ses";
+export type ReceivingProviderId = "none" | "cloudflare" | "resend" | "ses" | "forwardemail";
 export type ConfigurableReceiving = Exclude<ReceivingProviderId, "none">;
 
 const isCloudflareMx = (content: string) => content.toLowerCase().replace(/\.$/, "").endsWith(".mx.cloudflare.net");
@@ -63,17 +64,19 @@ export async function setupReceiving(
 ): Promise<void> {
 	if (provider === "cloudflare") return setupCloudflareReceiving(env, domain, options);
 	if (provider === "resend") return setupResendReceiving(env, domain, origin, options);
+	if (provider === "forwardemail") return setupForwardEmail(env, domain, "receiving", origin, { ...options, keepMx: false });
 	return setupSesReceiving(env, domain, origin, options);
 }
 
 export async function removeReceiving(env: CloudflareEnv, domain: DomainRow, provider: ConfigurableReceiving): Promise<void> {
 	if (provider === "cloudflare") return removeCloudflareReceiving(env, domain);
 	if (provider === "resend") return removeResendReceiving(env, domain);
+	if (provider === "forwardemail") return removeForwardEmail(env, domain, "receiving");
 	return removeSesReceiving(env, domain);
 }
 
 /** Which providers have leftover receiving configuration (null = could not tell). */
 export async function receivingPresence(env: CloudflareEnv, domain: DomainRow): Promise<Record<ConfigurableReceiving, boolean | null>> {
-	const [resend, ses] = await Promise.all([hasResendReceivingConfig(env, domain), hasSesReceivingConfig(env, domain)]);
-	return { cloudflare: domain.routingEnabled, resend, ses };
+	const [resend, ses, forwardemail] = await Promise.all([hasResendReceivingConfig(env, domain), hasSesReceivingConfig(env, domain), hasForwardEmailConfig(env, domain, "receiving")]);
+	return { cloudflare: domain.routingEnabled, resend, ses, forwardemail };
 }

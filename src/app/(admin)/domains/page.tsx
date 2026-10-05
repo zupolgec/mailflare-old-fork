@@ -333,6 +333,7 @@ export default function DomainsPage() {
                   <option value="cloudflare">Cloudflare Email Routing</option>
                   <option value="resend">Resend</option>
                   <option value="ses">Amazon SES</option>
+                  <option value="forwardemail">ForwardEmail</option>
                   <option value="none">Not selected</option>
                 </select>
               </div>
@@ -359,6 +360,7 @@ export default function DomainsPage() {
                   <option value="cloudflare">Cloudflare Email Sending</option>
                   <option value="resend">Resend</option>
                   <option value="ses">Amazon SES</option>
+                  <option value="forwardemail">ForwardEmail</option>
                   <option value="none">Not selected</option>
                 </select>
               </div>

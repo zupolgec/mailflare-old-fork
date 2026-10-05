@@ -16,10 +16,11 @@ import { removeSesSending } from "@/lib/aws/ses-sending";
 import { getResendDomainStatus, removeResendConfig } from "@/lib/domains/resend-domain";
 import { setupDomainDnsRecord } from "@/lib/domains/dns-setup";
 import { MxConflictError } from "@/lib/domains/receiving-dns";
+import { hasForwardEmailConfig, removeForwardEmail } from "@/lib/domains/forwardemail";
 
 type Params = { params: Promise<{ id: string }> };
 
-const schema = z.object({ provider: z.enum(["none", "cloudflare", "resend", "ses"]), replaceMx: z.boolean().optional() });
+const schema = z.object({ provider: z.enum(["none", "cloudflare", "resend", "ses", "forwardemail"]), replaceMx: z.boolean().optional() });
 
 /**
  * Chooses what sends mail for this domain. Receiving is unaffected, except that
@@ -64,13 +65,14 @@ export async function GET(request: Request, { params }: Params) {
 	const user = await requireUser(env, request);
 	const domain = await getDomainForUser(env, user.id, id);
 	if (!domain) return NextResponse.json({ error: "Not found" }, { status: 404 });
-	const [cloudflare, resendStatus, ses] = await Promise.all([
+	const [cloudflare, resendStatus, ses, forwardemail] = await Promise.all([
 		findCloudflareSending(env, domain),
 		getResendDomainStatus(env, domain),
 		sesSendingStatus(env, domain.hostname),
+		hasForwardEmailConfig(env, domain, "sending"),
 	]);
 	const resend = resendStatus === null ? null : resendStatus !== "not_registered";
-	return NextResponse.json({ cloudflare: !!cloudflare, resend, resendStatus, ses: ses === null ? null : ses.registered, sesVerified: ses?.verified ?? null }, { headers: { "Cache-Control": "no-store" } });
+	return NextResponse.json({ cloudflare: !!cloudflare, resend, resendStatus, ses: ses === null ? null : ses.registered, sesVerified: ses?.verified ?? null, forwardemail }, { headers: { "Cache-Control": "no-store" } });
 }
 
 async function sesSendingStatus(env: CloudflareEnv, hostname: string) {
@@ -79,7 +81,7 @@ async function sesSendingStatus(env: CloudflareEnv, hostname: string) {
 	try { return await getSesIdentity(config, hostname); } catch { return null; }
 }
 
-const removeSchema = z.object({ target: z.enum(["cloudflare", "resend", "ses"]) });
+const removeSchema = z.object({ target: z.enum(["cloudflare", "resend", "ses", "forwardemail"]) });
 
 /** Removes the config of a provider this domain is not using. */
 export async function DELETE(request: Request, { params }: Params) {
@@ -98,6 +100,7 @@ export async function DELETE(request: Request, { params }: Params) {
 	try {
 		if (parsed.data.target === "cloudflare") await removeCloudflareSending(env, domain);
 		else if (parsed.data.target === "resend") await removeResendConfig(env, domain);
+		else if (parsed.data.target === "forwardemail") await removeForwardEmail(env, domain, "sending");
 		else await removeSesSending(env, domain);
 		return NextResponse.json({ ok: true });
 	} catch (error) {

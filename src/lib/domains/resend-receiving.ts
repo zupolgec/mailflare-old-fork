@@ -28,7 +28,7 @@ function inboundMx(records: { type: string; value: string; priority?: number }[]
 	return (records ?? []).find((record) => record.type === "MX" && isInboundSmtpMx(record.value)) ?? null;
 }
 
-function isPublicHttps(origin: string): boolean {
+export function isPublicHttps(origin: string): boolean {
 	try {
 		const url = new URL(origin);
 		return url.protocol === "https:" && !/^(localhost|127\.|\[::1\]|.*\.localhost$|.*\.test$)/.test(url.hostname);
