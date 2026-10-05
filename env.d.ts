@@ -36,6 +36,8 @@ interface CloudflareEnv {
 	CF_ACCOUNT_ID?: string;
 	/** Public origin of this install (https://mail.example.com) when it sits behind a proxy. */
 	APP_URL?: string;
+	/** Fork: "true" or "1" unlocks the Team plan without a license key. */
+	TEAM_BYPASS?: string;
 	/** ForwardEmail API token, for domains that send or receive through ForwardEmail. */
 	FORWARDEMAIL_API_KEY?: string;
 }

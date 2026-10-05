@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { licenseSettings } from "@/db/schema";
 import { LICENSE_PRODUCT_IDS } from "./constants";
 import { callPaymugLicenseApi } from "./paymug";
+import { applyTeamBypassToRow, isTeamBypassEnabled } from "./team-bypass";
 import type { LicenseEntitlements, LicensePlan, LicenseStatus, PaymugLicenseAction } from "./types";
 import { hashLicenseKey, normalizeLicensePlan, parseFeatures } from "./utils";
 
@@ -21,7 +22,7 @@ async function getOrCreateLicenseSettings(env: CloudflareEnv) {
 		.where(eq(licenseSettings.id, LICENSE_SETTINGS_ID))
 		.limit(1);
 	if (!settings) throw new Error("Unable to initialize license settings");
-	return settings;
+	return applyTeamBypassToRow(env, settings);
 }
 
 function toLicenseStatus(settings: typeof licenseSettings.$inferSelect): LicenseStatus {
@@ -64,6 +65,7 @@ async function updateLicenseFromPaymug(
 	instanceUrl: string,
 	requestedPlan?: Exclude<LicensePlan, "community">,
 ): Promise<LicenseStatus> {
+	if (isTeamBypassEnabled(env)) return getLicenseStatus(env);
 	const settings = await getOrCreateLicenseSettings(env);
 	const licenseKeyHash = licenseKey ? await hashLicenseKey(licenseKey) : null;
 	if (action === "validate" && (!licenseKeyHash || settings.licenseKeyHash !== licenseKeyHash)) {

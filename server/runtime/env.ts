@@ -67,6 +67,7 @@ export function createNodeRuntime(): NodeRuntime {
 		MAILFLARE_RUNTIME: "node",
 		APP_URL: optional("APP_URL")?.replace(/\/$/, ""),
 		INBOUND_WEBHOOK_SECRET: optional("INBOUND_WEBHOOK_SECRET"),
+		TEAM_BYPASS: optional("TEAM_BYPASS"),
 		FORWARDEMAIL_API_KEY: optional("FORWARDEMAIL_API_KEY"),
 	} as unknown as CloudflareEnv;
 	realtime.bindEnv(env);

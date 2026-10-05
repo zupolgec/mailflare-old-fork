@@ -23,3 +23,5 @@ CF_TOKEN=your_api_token_with_zone_email_permissions
 # FORWARDEMAIL_API_KEY=...
 # Receiving through Resend or SES needs a public HTTPS address.
 # APP_URL=https://mail.example.com
+# Fork: unlock the Team plan (shared mailboxes, account management) without a license key.
+# TEAM_BYPASS=true
